@@ -569,3 +569,23 @@ select:focus {
     background: rgba(0, 255, 136, 0.1);
     border-color: var(--accent-primary);
 }
+/* 状态标签样式 (Phase 6) */
+.status-badge {
+    padding: 0.8rem 1rem;
+    border-radius: 12px;
+    margin-bottom: 1.5rem;
+    font-size: 0.9rem;
+    text-align: center;
+    border: 1px solid var(--border-card);
+    backdrop-filter: blur(8px);
+}
+.status-badge.safe {
+    background: rgba(0, 255, 136, 0.1);
+    color: var(--primary);
+    border-color: rgba(0, 255, 136, 0.2);
+}
+.status-badge.warning {
+    background: rgba(255, 77, 77, 0.1);
+    color: var(--danger);
+    border-color: rgba(255, 77, 77, 0.2);
+}
