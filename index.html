@@ -348,22 +348,32 @@
             }
         }
 
-        function renderActiveView() {
-            if (state.user?.role === 'sender') {
-                renderSenderView();
-            } else {
-                renderGuardianView();
+        async function renderActiveView() {
+            try {
+                const status = await Auth.getStatus();
+                if (state.user?.role === 'sender') {
+                    renderSenderView(status);
+                } else {
+                    renderGuardianView(status);
+                }
+            } catch (err) {
+                DOM.container.innerHTML = `<div class="view active-view"><p class="error">加载失败: ${err.message}</p></div>`;
             }
         }
 
-        function renderSenderView() {
+        function renderSenderView(status) {
             const lastTime = state.lastCheckIn ? new Date(state.lastCheckIn).toLocaleString() : '从无';
+            const boundHtml = status.bound
+                ? `<div class="status-badge safe">已绑定监护人: <b>${status.guardian.nickname}</b> (<code>${status.guardian.id.substring(0, 8)}</code>)</div>`
+                : `<div class="status-badge warning">尚未绑定监护人，请在设置中发起绑定</div>`;
+
             DOM.container.innerHTML = `
                 <div class="view active-view">
+                    ${boundHtml}
                     <div class="status-card">
                         <div class="status-icon">✅</div>
                         <div class="status-info">
-                            <p>状态：当前安全</p>
+                            <p>我的存活状态：当前安全</p>
                             <p class="small">上次签到：${lastTime}</p>
                         </div>
                     </div>
@@ -375,19 +385,42 @@
             `;
         }
 
-        async function renderGuardianView() {
+        async function renderGuardianView(results) {
             DOM.container.innerHTML = `
                 <div class="view active-view">
                     <div class="guardian-header">
                         <h2>我的监护列表</h2>
-                        <button class="btn btn-secondary btn-small" onclick="checkGuardianStatus()">手动刷新</button>
+                        <button class="btn btn-secondary btn-small" onclick="renderActiveView()">手动刷新</button>
                     </div>
                     <div id="guardian-list" class="guardian-list">
-                        <p class="small">正在检查连接状态...</p>
+                        ${results.length === 0 ? `<p class="small">暂无绑定的使用者。请将您的 ID 发给对方进行绑定申请。</p>` : ''}
                     </div>
                 </div>
             `;
-            checkGuardianStatus();
+
+            if (results.length > 0) {
+                const list = document.getElementById('guardian-list');
+                list.innerHTML = results.map(r => {
+                    const last = r.date ? new Date(r.date) : null;
+                    const hours = last ? (new Date() - last) / (1000 * 60 * 60) : Infinity;
+                    const isWarning = hours > 48;
+                    const statusClass = isWarning ? 'status-danger' : 'status-safe';
+
+                    return `
+                        <div class="status-card ${statusClass}">
+                            <div class="status-icon">${isWarning ? '⚠️' : '✅'}</div>
+                            <div class="status-info">
+                                <div class="status-name-row">
+                                    <p class="nickname"><b>${r.remark || r.nickname || '未命名'}</b> (<code>${r.id.substring(0, 8)}</code>)</p>
+                                    <button class="btn-icon-tiny" onclick="editRemark('${r.id}', '${r.remark || r.nickname || ''}')">✏️</button>
+                                </div>
+                                <p class="small">最后签到: ${last ? last.toLocaleString() : '从无'}</p>
+                                <p class="small status-msg">${isWarning ? '离线预警' : '状态安全'}</p>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
         }
 
         async function checkGuardianStatus() {
