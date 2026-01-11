@@ -49,9 +49,7 @@
             const savedTheme = localStorage.getItem('theme') || 'dark';
             document.documentElement.setAttribute('data-theme', savedTheme);
 
-            if (!state.config.bridgeUrl) {
-                switchView('settings');
-            } else if (!Auth.isLoggedIn()) {
+            if (!Auth.isLoggedIn()) {
                 switchView('auth');
             } else {
                 switchView('active');
@@ -200,6 +198,7 @@
                     
                     <div id="config-fields"></div>
 
+                    ${user ? `
                     <div class="binding-section">
                         <h3>绑定管理</h3>
                         <div id="binding-info">加载中...</div>
@@ -210,6 +209,15 @@
                         <button class="btn btn-secondary" onclick="Auth.logout()">退出登录</button>
                         <button class="btn btn-danger" onclick="clearRecords()">清空历史数据</button>
                     </div>
+                    ` : `
+                    <div class="info-section">
+                        <p class="small">您尚未登录。以上部分设置生效需先完成登录。</p>
+                        <div class="actions">
+                            <button class="btn btn-primary" onclick="saveSettings()">保存配置</button>
+                            <button class="btn btn-secondary" onclick="switchView('auth')">返回登录</button>
+                        </div>
+                    </div>
+                    `}
                 </div>
             `;
             renderConfigFields();
