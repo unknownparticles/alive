@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>我还活着 - 离线存活确认</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="icons/icon-192.png">
+    <meta name="theme-color" content="#2c3e50">
+</head>
+
+<body>
+    <div id="app">
+        <header>
+            <h1>我还活着</h1>
+            <div class="header-actions">
+                <button id="btn-theme-toggle" class="icon-btn" title="切换主题">🌓</button>
+                <button id="btn-settings-toggle" class="icon-btn" title="设置">⚙️</button>
+            </div>
+        </header>
+
+        <main id="view-container">
+            <!-- 视图将通过 JS 渲染 -->
+        </main>
+    </div>
+
+    <!-- 核心脚本 -->
+    <script src="js/storage.js"></script>
+    <script src="js/mail.js"></script>
+    <script src="js/auth.js"></script>
+    <script>
+        const state = {
+            user: Auth.getUser(),
+            config: Storage.load(Storage.KEYS.CONFIG) || {},
+            lastCheckIn: Storage.load(Storage.KEYS.LAST_CHECK_IN) || null,
+            records: Storage.load(Storage.KEYS.RECORDS) || [],
+            currentView: 'auth'
+        };
+
+        const DOM = {
+            container: document.getElementById('view-container'),
+            settingsToggle: document.getElementById('btn-settings-toggle')
+        };
+
+        // 初始化主题
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+
+        if (!state.config.bridgeUrl) {
+            switchView('settings');
+        } else if (!Auth.isLoggedIn()) {
+            switchView('auth');
+        } else {
+            switchView('active');
+        }
+
+        render(); // 关键修复：初始渲染
+
+        document.getElementById('btn-theme-toggle').onclick = () => {
+            const current = document.documentElement.getAttribute('data-theme');
+            const next = current === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', next);
+            localStorage.setItem('theme', next);
+        };
+
+        DOM.settingsToggle.onclick = () => {
+            if (state.currentView === 'settings') {
+                if (!Auth.isLoggedIn()) return switchView('auth');
+                switchView('active');
+            } else {
+                switchView('settings');
+            }
+        };
+        }
+
+        init(); // 调用初始化
+
+        function switchView(viewName) {
+            // 强制跳转逻辑：未登录不能进 active
+            if (!Auth.isLoggedIn() && viewName === 'active') {
+                viewName = 'auth';
+            }
+            state.currentView = viewName;
+            render();
+        }
+
+        function render() {
+            DOM.container.innerHTML = '';
+
+            if (state.currentView === 'auth') {
+                renderAuth();
+            } else if (state.currentView === 'settings') {
+                renderSettings();
+            } else if (state.currentView === 'active') {
+                renderActiveView();
+            }
+        }
+
+        function renderAuth() {
+            DOM.container.innerHTML = `
+                <div class="view auth-view">
+                    <div class="tabs">
+                        <button class="tab-btn active" onclick="showAuthTab('login')">登录</button>
+                        <button class="tab-btn" onclick="showAuthTab('register')">注册</button>
+                    </div>
+                    
+                    <div id="login-form" class="auth-form">
+                        <div class="form-group">
+                            <label>用户名</label>
+                            <input type="text" id="auth-username" placeholder="输入您的账号名">
+                        </div>
+                        <div class="form-group">
+                            <label>密码</label>
+                            <input type="password" id="auth-password" placeholder="输入您的密码">
+                        </div>
+                        <button class="btn btn-primary" onclick="handleLogin()">立即登录</button>
+                    </div>
+
+                    <div id="register-form" class="auth-form" style="display:none">
+                        <div class="form-group">
+                            <label>用户名</label>
+                            <input type="text" id="reg-username" placeholder="建议使用邮箱名">
+                        </div>
+                        <div class="form-group">
+                            <label>昵称</label>
+                            <input type="text" id="reg-nickname" placeholder="让对方知道您是谁">
+                        </div>
+                        <div class="form-group">
+                            <label>密码</label>
+                            <input type="password" id="reg-password" placeholder="建议使用 8 位以上字符">
+                        </div>
+                        <div class="form-group">
+                            <label>邀请码</label>
+                            <input type="text" id="reg-invite" placeholder="必填，请向管理员获取">
+                        </div>
+                        <div class="form-group">
+                            <label>我的身份</label>
+                            <select id="reg-role">
+                                <option value="sender">使用者</option>
+                                <option value="guardian">监护人</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-primary" onclick="handleRegister()">完成注册</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function showAuthTab(tab) {
+            document.getElementById('login-form').style.display = tab === 'login' ? 'block' : 'none';
+            document.getElementById('register-form').style.display = tab === 'register' ? 'block' : 'none';
+            document.querySelectorAll('.tab-btn').forEach((btn, i) => {
+                btn.classList.toggle('active', (tab === 'login' && i === 0) || (tab === 'register' && i === 1));
+            });
+        }
+
+        async function handleLogin() {
+            const u = document.getElementById('auth-username').value.trim();
+            const p = document.getElementById('auth-password').value.trim();
+            if (!u || !p) return alert('请填入账号和密码');
+
+            try {
+                await Auth.login(u, p);
+                state.user = Auth.getUser();
+                location.reload(); // 登录后刷新状态
+            } catch (err) {
+                alert('登录失败: ' + err.message);
+            }
+        }
+
+        async function handleRegister() {
+            const u = document.getElementById('reg-username').value.trim();
+            const n = document.getElementById('reg-nickname').value.trim();
+            const p = document.getElementById('reg-password').value.trim();
+            const i = document.getElementById('reg-invite').value.trim();
+            const r = document.getElementById('reg-role').value;
+
+            if (!u || !p || !n) return alert('请完善注册信息（账号、昵称、密码）');
+
+            try {
+                await Auth.register(u, p, i, r, n);
+                alert('注册成功，请登录');
+                showAuthTab('login');
+            } catch (err) {
+                alert('注册失败: ' + err.message);
+            }
+        }
+
+        function renderSettings() {
+            const user = Auth.getUser();
+            DOM.container.innerHTML = `
+                <div class="view settings-view">
+                    <div class="settings-header">
+                        <h2>个人设置</h2>
+                        <span class="user-id">我的: <b>${user ? user.nickname : '未登录'}</b> (<code>${user ? user.id.substring(0, 8) : '...'}</code>)</span>
+                    </div>
+                    
+                    <div id="config-fields"></div>
+
+                    <div class="binding-section">
+                        <h3>绑定管理</h3>
+                        <div id="binding-info">加载中...</div>
+                    </div>
+
+                    <div class="actions">
+                        <button class="btn btn-primary" onclick="saveSettings()">保存配置</button>
+                        <button class="btn btn-secondary" onclick="Auth.logout()">退出登录</button>
+                        <button class="btn btn-danger" onclick="clearRecords()">清空历史数据</button>
+                    </div>
+                </div>
+            `;
+            renderConfigFields();
+            renderBindingPanel();
+        }
+
+
+        function renderConfigFields() {
+            DOM.configFields = document.getElementById('config-fields');
+            let html = `
+                <div class="form-group">
+                    <label>桥接/API 接口 URL</label>
+                    <input type="url" id="field-bridge" value="${state.config.bridgeUrl || ''}" placeholder="默认: https://alive-bridge.alunnb.workers.dev">
+                </div>
+            `;
+            // 以后这里可以保留原有邮箱配置作为备选，但目前优先使用 API 模式
+            DOM.configFields.innerHTML = html;
+        }
+
+        async function renderBindingPanel() {
+            const panel = document.getElementById('binding-info');
+            const user = Auth.getUser();
+
+            if (user.role === 'sender') {
+                panel.innerHTML = `
+                    <div class="form-group">
+                        <label>发起绑定 (输入主人的 ID)</label>
+                        <input type="text" id="bind-target-id" placeholder="例如: 550e8400-e29b-41d4-a716-446655440000">
+                        <button class="btn btn-secondary btn-small" onclick="requestBinding()">发送绑定请求</button>
+                    </div>
+                `;
+            } else {
+                try {
+                    const requests = await Auth.getPending();
+                    if (requests.length === 0) {
+                        panel.innerHTML = `<p class="small">暂无待处理的绑定请求</p>`;
+                    } else {
+                        panel.innerHTML = requests.map(req => `
+                            <div class="request-item">
+                                <span class="small">用户: <b>${req.nickname || '匿名'}</b> (<code>${req.from.substring(0, 8)}</code>) 请求绑定</span>
+                                <div class="action-btns">
+                                    <button class="btn-text btn-safe" onclick="handleConfirmBind('${req.from}', 'accept')">准许</button>
+                                    <button class="btn-text btn-danger" onclick="handleConfirmBind('${req.from}', 'reject')">拒绝</button>
+                                </div>
+                            </div>
+                        `).join('');
+                    }
+                } catch (err) {
+                    panel.innerHTML = `<p class="small error">获取请求失败: ${err.message}</p>`;
+                }
+            }
+        }
+
+        async function handleConfirmBind(sourceId, action) {
+            try {
+                await Auth.confirmBind(sourceId, action);
+                alert(action === 'accept' ? '已接受绑定' : '已拒绝');
+                renderBindingPanel();
+            } catch (err) {
+                alert('操作失败: ' + err.message);
+            }
+        }
+
+        async function requestBinding() {
+            const id = document.getElementById('bind-target-id').value.trim();
+            if (!id) return alert('请输入目标 ID');
+            try {
+                await Auth.reqBind(id);
+                alert('请求已发送，请联系对方在设置中确认。');
+            } catch (err) {
+                alert('发送失败: ' + err.message);
+            }
+        }
+
+        function onEmailInput(el) {
+            if (state.user?.role === 'sender') {
+                const host = Mailer.getSmtpHost(el.value);
+                const smtpEl = document.getElementById('field-smtp');
+                if (smtpEl && host) smtpEl.value = host;
+            }
+        }
+
+        function saveSettings() {
+            const bridgeEl = document.getElementById('field-bridge');
+            const bridgeUrl = bridgeEl ? bridgeEl.value.trim() : '';
+
+            if (!bridgeUrl) return alert('请配置桥接 URL (API 接口)');
+
+            const config = { bridgeUrl };
+            state.config = config;
+            Storage.save(Storage.KEYS.CONFIG, config);
+
+            alert('设置已保存');
+
+            if (Auth.isLoggedIn()) {
+                renderActiveView();
+                switchView('active');
+            } else {
+                switchView('auth');
+            }
+        }
+
+        function clearRecords() {
+            if (confirm('确定要清空所有历史记录吗？')) {
+                state.records = [];
+                Storage.save(Storage.KEYS.RECORDS, []);
+                renderActiveView();
+            }
+        }
+
+        async function handleCheckIn() {
+            const btn = document.getElementById('btn-check-in');
+            btn.disabled = true;
+            btn.innerText = '正在发送...';
+
+            try {
+                await Auth.sendPulse();
+                state.lastCheckIn = new Date().toISOString();
+                Storage.save(Storage.KEYS.LAST_CHECK_IN, state.lastCheckIn);
+                renderActiveView();
+                alert('签到成功');
+            } catch (err) {
+                console.error(err);
+                alert('签到失败: ' + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerText = '立即签到';
+            }
+        }
+
+        function renderActiveView() {
+            if (state.user?.role === 'sender') {
+                renderSenderView();
+            } else {
+                renderGuardianView();
+            }
+        }
+
+        function renderSenderView() {
+            const lastTime = state.lastCheckIn ? new Date(state.lastCheckIn).toLocaleString() : '从无';
+            DOM.container.innerHTML = `
+                <div class="view active-view">
+                    <div class="status-card">
+                        <div class="status-icon">✅</div>
+                        <div class="status-info">
+                            <p>状态：当前安全</p>
+                            <p class="small">上次签到：${lastTime}</p>
+                        </div>
+                    </div>
+                    <button id="btn-check-in" class="btn btn-primary btn-large" onclick="handleCheckIn()">立即签到</button>
+                    <div class="info-section">
+                        <p>请保持每天至少签到一次。如果超过 48 小时未收到您的签到邮件，监护端将收到提醒。</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function renderGuardianView() {
+            DOM.container.innerHTML = `
+                <div class="view active-view">
+                    <div class="guardian-header">
+                        <h2>我的监护列表</h2>
+                        <button class="btn btn-secondary btn-small" onclick="checkGuardianStatus()">手动刷新</button>
+                    </div>
+                    <div id="guardian-list" class="guardian-list">
+                        <p class="small">正在检查连接状态...</p>
+                    </div>
+                </div>
+            `;
+            checkGuardianStatus();
+        }
+
+        async function checkGuardianStatus() {
+            const list = document.getElementById('guardian-list');
+
+            try {
+                const results = await Auth.getStatus(); // 返回 [{id, date}]
+                if (results.length === 0) {
+                    list.innerHTML = `<p class="small">暂无绑定的使用者。请将您的 ID 发给对方进行绑定申请。</p>`;
+                    return;
+                }
+
+                list.innerHTML = results.map(r => {
+                    const last = r.date ? new Date(r.date) : null;
+                    const hours = last ? (new Date() - last) / (1000 * 60 * 60) : Infinity;
+                    const isWarning = hours > 48;
+                    const statusClass = isWarning ? 'status-danger' : 'status-safe';
+
+                    return `
+                        <div class="status-card ${statusClass}">
+                            <div class="status-icon">${isWarning ? '⚠️' : '✅'}</div>
+                            <div class="status-info">
+                                <div class="status-name-row">
+                                    <p class="nickname"><b>${r.remark || r.nickname || '未命名'}</b> (<code>${r.id.substring(0, 8)}</code>)</p>
+                                    <button class="btn-icon-tiny" onclick="editRemark('${r.id}', '${r.remark || r.nickname || ''}')">✏️</button>
+                                </div>
+                                <p class="small">最后签到: ${last ? last.toLocaleString() : '从无'}</p>
+                                <p class="small status-msg">${isWarning ? '离线预警' : '状态安全'}</p>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (err) {
+                list.innerHTML = `<p class="small error">获取失败: ${err.message}</p>`;
+            }
+        }
+
+        async function editRemark(id, current) {
+            const remark = prompt('为该用户设置备注名:', current);
+            if (remark === null) return;
+            try {
+                await Auth.setRemark(id, remark);
+                checkGuardianStatus();
+            } catch (err) {
+                alert('设置备注失败: ' + err.message);
+            }
+        }
+
+        // 初始化
+        init();
+    </script>
+</body>
+
+</html>
