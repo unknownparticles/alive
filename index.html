@@ -44,35 +44,36 @@
             settingsToggle: document.getElementById('btn-settings-toggle')
         };
 
-        // 初始化主题
-        const savedTheme = localStorage.getItem('theme') || 'dark';
-        document.documentElement.setAttribute('data-theme', savedTheme);
+        function init() {
+            // 初始化主题
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
 
-        if (!state.config.bridgeUrl) {
-            switchView('settings');
-        } else if (!Auth.isLoggedIn()) {
-            switchView('auth');
-        } else {
-            switchView('active');
-        }
-
-        render(); // 关键修复：初始渲染
-
-        document.getElementById('btn-theme-toggle').onclick = () => {
-            const current = document.documentElement.getAttribute('data-theme');
-            const next = current === 'light' ? 'dark' : 'light';
-            document.documentElement.setAttribute('data-theme', next);
-            localStorage.setItem('theme', next);
-        };
-
-        DOM.settingsToggle.onclick = () => {
-            if (state.currentView === 'settings') {
-                if (!Auth.isLoggedIn()) return switchView('auth');
-                switchView('active');
-            } else {
+            if (!state.config.bridgeUrl) {
                 switchView('settings');
+            } else if (!Auth.isLoggedIn()) {
+                switchView('auth');
+            } else {
+                switchView('active');
             }
-        };
+
+            render(); // 关键修复：初始渲染
+
+            document.getElementById('btn-theme-toggle').onclick = () => {
+                const current = document.documentElement.getAttribute('data-theme');
+                const next = current === 'light' ? 'dark' : 'light';
+                document.documentElement.setAttribute('data-theme', next);
+                localStorage.setItem('theme', next);
+            };
+
+            DOM.settingsToggle.onclick = () => {
+                if (state.currentView === 'settings') {
+                    if (!Auth.isLoggedIn()) return switchView('auth');
+                    switchView('active');
+                } else {
+                    switchView('settings');
+                }
+            };
         }
 
         init(); // 调用初始化
