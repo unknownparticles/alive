@@ -1,5 +1,5 @@
 const Mailer = {
-    DEFAULT_BRIDGE: "https://alive-bridge.alunnb.workers.dev/",
+    DEFAULT_BRIDGE: "https://aliveservice.asia/",
     // 内部实现 SMTP.js 的核心逻辑，避免外部脚本加载失败
     async _send(a) {
         console.group("邮件发送调试 (Mailer Debug)");
