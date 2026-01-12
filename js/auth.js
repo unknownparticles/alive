@@ -5,7 +5,7 @@ const Auth = {
     TOKEN_KEY: 'alive_auth_token',
     USER_KEY: 'alive_user_info',
 
-    DEFAULT_BRIDGE: 'https://alive-bridge.alunnb.workers.dev',
+    DEFAULT_BRIDGE: 'https://aliveservice.asia',
 
     _getBridgeUrl() {
         const url = Storage.load(Storage.KEYS.CONFIG)?.bridgeUrl || this.DEFAULT_BRIDGE;
